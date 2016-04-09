@@ -108,5 +108,3 @@ module RailsAdminImport
     end
   end
 end
-
-
