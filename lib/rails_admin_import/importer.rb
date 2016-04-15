@@ -2,6 +2,12 @@ require "rails_admin_import/import_logger"
 
 module RailsAdminImport
   class Importer
+    extend ActiveModel::Callbacks
+
+    define_model_callbacks :import, only: :around
+
+    around_import :around_import_callback
+
     def initialize(import_model, params)
       @import_model = import_model
       @params = params
@@ -13,32 +19,46 @@ module RailsAdminImport
     end
 
     def import(records)
-      begin
-        init_results
+      run_callbacks :import do
+        begin
+          init_results
 
 
-        if records.count > RailsAdminImport.config.line_item_limit
-          return results = {
-            success: [],
-            error: [I18n.t('admin.import.import_error.line_item_limit', limit: RailsAdminImport.config.line_item_limit)]
-          }
-        end
-
-        with_transaction do
-          records.each do |record|
-            import_record(record)
+          if records.count > RailsAdminImport.config.line_item_limit
+            return results = {
+              success: [],
+              error: [I18n.t('admin.import.import_error.line_item_limit', limit: RailsAdminImport.config.line_item_limit)]
+            }
           end
 
-          rollback_if_error
+          with_transaction do
+            records.each do |record|
+              import_record(record)
+            end
+
+            rollback_if_error
+          end
+        rescue Exception => e
+          report_general_error("#{e} (#{e.backtrace.first})")
         end
-      rescue Exception => e
-        report_general_error("#{e} (#{e.backtrace.first})")
       end
 
       format_results
     end
 
     private
+
+    def around_import_callback
+      perform_callback(import_model.model, :before_import)
+
+      if import_model.model.respond_to? :around_import
+        perform_callback_with_yield(import_model.model, :around_import) { yield }
+      else
+        yield
+      end
+
+      perform_callback(import_model.model, :after_import)
+    end
 
     def init_results
       @results = { :success => [], :error => [] }
@@ -69,7 +89,14 @@ module RailsAdminImport
         raise UpdateLookupError, I18n.t("admin.import.missing_update_lookup")
       end
 
-      object = find_or_create_object(record, update_lookup)
+      object = if import_model.model.respond_to? :import_find_or_create
+                 perform_callback(import_model.model, :import_find_or_create, record)
+               else
+                 find_or_create_object(record, update_lookup)
+               end
+
+      object.attributes = object_attributes(record)
+
       action = object.new_record? ? :create : :update
 
       begin
@@ -81,20 +108,22 @@ module RailsAdminImport
         return
       end
 
-      perform_model_callback(object, :before_import_save, record)
+      perform_callback(object, :before_import_save, record)
 
       if object.save
         report_success(object, action)
-        perform_model_callback(object, :after_import_save, record)
+        perform_callback(object, :after_import_save, record)
       else
         report_error(object, action, object.errors.full_messages.join(", "))
       end
     end
 
+    def update_if_exists
+      @update_if_exists ||= params[:update_if_exists] == "1"
+    end
+
     def update_lookup
-      @update_lookup ||= if params[:update_if_exists] == "1"
-                           params[:update_lookup].to_sym
-                         end
+      @update_lookup ||= params[:update_lookup].try(:to_sym) if update_if_exists
     end
 
     attr_reader :results
@@ -146,17 +175,22 @@ module RailsAdminImport
                action: I18n.t("admin.actions.import.done"))
     end
 
-    def perform_model_callback(object, method_name, record)
-      if object.respond_to?(method_name)
+    def perform_callback(object, method_name, record = nil)
+      if object.respond_to? method_name
         # Compatibility: Old import hook took 2 arguments.
         # Warn and call with a blank hash as 2nd argument.
         if object.method(method_name).arity == 2
           report_old_import_hook(method_name)
           object.send(method_name, record, {})
         else
-          object.send(method_name, record)
+          object.send(method_name) if record.nil?
+          object.send(method_name, record) unless record.nil?
         end
       end
+    end
+
+    def perform_callback_with_yield(object, method_name)
+      object.send(method_name) { yield } if object.respond_to? method_name
     end
 
     def report_old_import_hook(method_name)
@@ -170,22 +204,22 @@ module RailsAdminImport
     end
 
     def find_or_create_object(record, update)
-      field_names = import_model.model_fields.map(&:name)
-      new_attrs = record.select do |field_name, value|
-        field_names.include?(field_name) && !value.blank?
-      end
-
       model = import_model.model
       object = if update.present?
                  model.where(update => record[update]).first
                end
 
-      if object.nil?
-        object = model.new(new_attrs)
-      else
-        object.attributes = new_attrs.except(update.to_sym)
+      return model.new if object.nil?
+      return object
+    end
+
+    def object_attributes(record)
+      field_names = import_model.model_fields.map(&:name)
+      new_attrs = record.select do |field_name, value|
+        field_names.include?(field_name) && !value.blank?
       end
-      object
+
+      return new_attrs
     end
 
     def import_single_association_data(object, record)
