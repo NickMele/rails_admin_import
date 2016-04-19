@@ -20,4 +20,3 @@ module RailsAdminImport
     RailsAdminImport::Config.reset
   end
 end
-

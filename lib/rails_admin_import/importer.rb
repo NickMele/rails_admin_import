@@ -11,19 +11,16 @@ module RailsAdminImport
     def initialize(import_model, params)
       @import_model = import_model
       @params = params
+      @results = { success: [], error: [], skipped: [] }
     end
 
-    attr_reader :import_model, :params
+    attr_reader :import_model, :params, :results
 
-    class UpdateLookupError < StandardError
-    end
+    class UpdateLookupError < StandardError; end
 
     def import(records)
       run_callbacks :import do
         begin
-          init_results
-
-
           if records.count > RailsAdminImport.config.line_item_limit
             return results = {
               success: [],
@@ -60,10 +57,6 @@ module RailsAdminImport
       perform_callback(import_model.model, :after_import)
     end
 
-    def init_results
-      @results = { :success => [], :error => [] }
-    end
-
     def with_transaction(&block)
       if RailsAdminImport.config.rollback_on_error &&
         defined?(ActiveRecord)
@@ -85,7 +78,7 @@ module RailsAdminImport
     end
 
     def import_record(record)
-      if update_lookup && !record.has_key?(update_lookup)
+      if !update_lookup.nil? && !record.has_key?(update_lookup)
         raise UpdateLookupError, I18n.t("admin.import.missing_update_lookup")
       end
 
@@ -94,6 +87,11 @@ module RailsAdminImport
                else
                  find_or_create_object(record, update_lookup)
                end
+
+      if !object.new_record? && skip_if_exists?
+        report_skipped(object)
+        return
+      end
 
       object.attributes = object_attributes(record)
 
@@ -118,12 +116,16 @@ module RailsAdminImport
       end
     end
 
-    def update_if_exists
+    def skip_if_exists?
+      @skip_if_exists ||= params[:skip_if_exists] == "1"
+    end
+
+    def update_if_exists?
       @update_if_exists ||= params[:update_if_exists] == "1"
     end
 
     def update_lookup
-      @update_lookup ||= params[:update_lookup].try(:to_sym) if update_if_exists
+      @update_lookup ||= params[:update_lookup].try(:to_sym) if update_if_exists? || skip_if_exists?
     end
 
     attr_reader :results
@@ -149,6 +151,13 @@ module RailsAdminImport
       results[:error] << message
     end
 
+    def report_skipped(object)
+      object_label = import_model.label_for_model(object)
+      message = I18n.t("admin.import.import_skipped", :name => object_label)
+      logger.info "#{Time.now}: #{message}"
+      results[:skipped] << message
+    end
+
     def report_general_error(error)
       message = I18n.t("admin.import.import_error.general", :error => error)
       logger.info "#{Time.now}: #{message}"
@@ -158,11 +167,15 @@ module RailsAdminImport
     def format_results
       imported = results[:success]
       not_imported = results[:error]
+      skipped = results[:skipped]
       unless imported.empty?
         results[:success_message] = format_result_message("successful", imported)
       end
       unless not_imported.empty?
         results[:error_message] = format_result_message("error", not_imported)
+      end
+      unless skipped.empty?
+        results[:skipped_message] = format_result_message("noaction", skipped)
       end
 
       results

@@ -7,6 +7,15 @@
       %ul.control-group{style: 'display: none'}
         - @results[:success].each do |message|
           %li= message
+- if @results && @results[:skipped].any?
+  .alert.alert-warning.form-horizontal.denser
+    %fieldset
+      %legend
+        %i.icon-chevron-down
+        = @results[:skipped_message]
+      %ul.control-group
+        - @results[:skipped].each do |message|
+          %li= message
 - if @results && @results[:error].any?
   .alert.alert-danger.form-horizontal.denser
     %fieldset

@@ -19,6 +19,7 @@ en:
       invalid_format: "Invalid import format."
       missing_update_lookup: "Your file must contain a column for the 'Update lookup field' you selected."
       invalid_json: "The JSON data should be an array of records or an object with a key '%{root_key}' set to an array of records"
+      skip_if_exists: "Skip if exists"
       update_if_exists: "Update if exists"
       update_lookup: "Update lookup field"
       mapping: "mapping"
@@ -30,6 +31,7 @@ en:
       import_success:
         create: "Created %{name}"
         update: "Updated %{name}"
+      import_skipped: "Skiped record %{name}"
       import_error:
         create: "Failed to create %{name}: %{error}"
         update: "Failed to update %{name}: %{error}"
@@ -45,7 +47,7 @@ en:
         association_fields: >
           These fields map to other tables in the database, lookup via attribute selected below.
           For "many" associations, you may include multiple columns with the same header in the CSV file.
+        skip_if_exists: "Skip records that already exist instead of updating records"
         update_if_exists: "Update records found with the lookup field below instead of creating new records"
         file_limit: "Please limit upload file to %{limit} line items."
         encoding: "Choose file encoding. Leave empty to auto-detect. Ignored for JSON."
-
