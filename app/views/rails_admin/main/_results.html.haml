@@ -1,4 +1,4 @@
-- if @results && @results[:success].any?
+- if @results && @results[:success].present?
   .alert.alert-success.form-horizontal.denser
     %fieldset
       %legend
@@ -7,7 +7,7 @@
       %ul.control-group{style: 'display: none'}
         - @results[:success].each do |message|
           %li= message
-- if @results && @results[:skipped].any?
+- if @results && @results[:skipped].present?
   .alert.alert-warning.form-horizontal.denser
     %fieldset
       %legend
@@ -16,7 +16,7 @@
       %ul.control-group
         - @results[:skipped].each do |message|
           %li= message
-- if @results && @results[:error].any?
+- if @results && @results[:error].present?
   .alert.alert-danger.form-horizontal.denser
     %fieldset
       %legend

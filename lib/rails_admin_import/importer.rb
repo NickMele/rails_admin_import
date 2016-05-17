@@ -9,9 +9,9 @@ module RailsAdminImport
     around_import :around_import_callback
 
     def initialize(import_model, params)
+      @results = { success: [], error: [], skipped: [] }
       @import_model = import_model
       @params = params
-      @results = { success: [], error: [], skipped: [] }
     end
 
     attr_reader :import_model, :params, :results
