@@ -86,7 +86,9 @@ module RailsAdminImport
 
     def associated_model_fields(field)
       @associated_fields ||= {}
-      if associated_config(field).mapping_key_list.present?
+      if associated_config(field).associated_mapping_key_list.present?
+        @associated_fields[field] ||= associated_config(field).associated_mapping_key_list
+      elsif associated_config(field).mapping_key_list.present?
         @associated_fields[field] ||= associated_config(field).mapping_key_list
       else
         @associated_fields[field] ||= associated_config(field).visible_fields.select { |f|

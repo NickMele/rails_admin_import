@@ -9,7 +9,15 @@ module RailsAdmin
           :name
         end
 
+        register_instance_option(:associated_mapping_key) do
+          mapping_key
+        end
+
         register_instance_option(:mapping_key_list) do
+          []
+        end
+
+        register_instance_option(:associated_mapping_key_list) do
           []
         end
 

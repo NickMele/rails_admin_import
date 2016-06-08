@@ -59,7 +59,7 @@
           .col-sm-10.controls
             = select_tag "associations[#{field.name}]",
               options_for_select(@import_model.associated_model_fields(field),
-              @import_model.associated_config(field).mapping_key.to_s), data: { enumeration: true }
+              @import_model.associated_config(field).associated_mapping_key.to_s), data: { enumeration: true }
 
   %br
   .form-actions
