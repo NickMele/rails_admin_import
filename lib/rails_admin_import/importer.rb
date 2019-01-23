@@ -22,7 +22,7 @@ module RailsAdminImport
       run_callbacks :import do
         begin
           if records.count > RailsAdminImport.config.line_item_limit
-            return results = {
+            return {
               success: [],
               error: [I18n.t('admin.import.import_error.line_item_limit', limit: RailsAdminImport.config.line_item_limit)]
             }
